@@ -1,4 +1,3 @@
-
 # MERN Server Setup CLI
 
 A command-line tool that scaffolds a complete MERN backend server (ESM) with Express, MongoDB, JWT auth, and Nodemon.
