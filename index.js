@@ -4,13 +4,35 @@ import fs from 'fs-extra';
 import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import readline from 'readline';
 
 // Support __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Function to get user input for folder name
+async function getUserFolder() {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    return new Promise((resolve) => {
+        rl.question('📁 Enter folder name for your project (default: server): ', (answer) => {
+            rl.close();
+            resolve(answer.trim() || 'server');
+        });
+    });
+}
+
 async function createServerSetup() {
-    const baseDir = process.cwd();
+    // Get user input for folder name
+    const userFolder = await getUserFolder();
+    const baseDir = path.resolve(process.cwd(), userFolder);
+
+    // Create the project folder
+    await fs.ensureDir(baseDir);
+    console.log(`🚀 Creating MERN backend in folder: ${userFolder}`);
     console.log('🚀 Creating folder structure...');
 
     const folders = ['config', 'controllers', 'middlewares', 'models', 'routes', 'utils'];
@@ -130,6 +152,9 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(\`Server running on port \${PORT}\`));
     `.trim());
 
+    // Change to project directory for npm operations
+    process.chdir(baseDir);
+
     console.log('⚡ Initializing npm project...');
     execSync('npm init -y', { stdio: 'inherit' });
 
@@ -165,7 +190,9 @@ app.listen(PORT, () => console.log(\`Server running on port \${PORT}\`));
     execSync('npm run dev', { stdio: 'inherit' });
 
     console.log('✅ Full MERN backend server setup (ESM Module Type) is ready! 🎉');
+    console.log(`\n📁 Project created in: ${userFolder}/`);
     console.log('\n🚀 To start your server again:');
+    console.log(`   cd ${userFolder}`);
     console.log('   npm run dev     # Development mode with nodemon');
     console.log('   npm start       # Production mode');
     console.log('\n📝 Environment variables are in .env file');
