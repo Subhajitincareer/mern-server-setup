@@ -10,13 +10,25 @@ import { execSync } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Simple logging utility with colors
+const COLORS = {
+  reset: '\x1b[0m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  cyan: '\x1b[36m'
+};
+
+function log(message, color = 'reset') {
+  const code = COLORS[color] || COLORS.reset;
+  console.log(`${code}${message}${COLORS.reset}`);
+}
+
 // Prompt user for folder name
 async function getUserFolder() {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
   });
-
   return new Promise((resolve) => {
     rl.question('📁 Enter folder name for your project (default: server): ', (answer) => {
       rl.close();
@@ -25,24 +37,65 @@ async function getUserFolder() {
   });
 }
 
+// Enhanced cleanup function to remove CLI installation files
+async function cleanupCLIFiles(workingDir, projectDir) {
+  log('🧹 Cleaning CLI installation files...', 'yellow');
+  try {
+    // Only cleanup if working directory is different from project directory
+    if (path.resolve(workingDir) === path.resolve(projectDir)) {
+      log('   Skipping CLI cleanup (same directory)', 'cyan');
+      return;
+    }
+    // CLI files to remove
+    const cliFilesToRemove = [
+      'node_modules',
+      'package.json',
+      'package-lock.json',
+      '.npm',
+      'npm-debug.log',
+      '.npmrc'
+    ];
+    let filesRemoved = 0;
+    for (const file of cliFilesToRemove) {
+      const filePath = path.join(workingDir, file);
+      try {
+        if (await fs.pathExists(filePath)) {
+          await fs.remove(filePath);
+          log(`   ✅ Removed CLI file: ${file}`, 'green');
+          filesRemoved++;
+        }
+      } catch (error) {
+        log(`   ⚠️ Could not remove: ${file}`, 'yellow');
+      }
+    }
+    if (filesRemoved > 0) {
+      log(`✅ CLI cleanup completed! Removed ${filesRemoved} files.`, 'green');
+    } else {
+      log('✅ No CLI files to cleanup.', 'green');
+    }
+  } catch (error) {
+    log('⚠️ CLI cleanup failed, but project created successfully', 'yellow');
+  }
+}
+
 async function createServerSetup() {
   try {
     // Get user input for folder name
     const userFolder = await getUserFolder();
     const baseDir = path.resolve(process.cwd(), userFolder);
 
-    console.log(`🚀 Creating MERN backend in folder: ${userFolder}`);
+    log(`🚀 Creating MERN backend in folder: ${userFolder}`, 'green');
     await fs.ensureDir(baseDir);
 
     // Create folder structure
-    console.log('🚀 Creating folder structure...');
+    log('🚀 Creating folder structure...', 'cyan');
     const folders = ['config', 'controllers', 'middlewares', 'models', 'routes', 'utils'];
     folders.forEach(folder =>
       fs.mkdirSync(path.join(baseDir, folder), { recursive: true })
     );
 
     // Write .env and .gitignore
-    console.log('📄 Creating configuration files...');
+    log('📄 Creating configuration files...', 'cyan');
     await fs.writeFile(
       path.join(baseDir, '.env'),
       [
@@ -75,7 +128,7 @@ async function createServerSetup() {
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI)
+    const conn = await mongoose.connect(process.env.MONGO_URI);
     console.log(\`🍃 MongoDB Connected: \${conn.connection.host}\`);
   } catch (error) {
     console.error('❌ MongoDB connection failed:', error.message);
@@ -104,7 +157,7 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Please add an email'],
     unique: true,
     match: [
-      /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+      /^\\w+([.-]?\\w+)*@\\w+([.-]?\\w+)*(\\.\\w{2,3})+$/,
       'Please add a valid email'
     ]
   },
@@ -190,9 +243,9 @@ export default mongoose.model('Item', itemSchema);`
 import { generateToken } from '../utils/generateToken.js';
 import asyncHandler from '../middlewares/asyncHandler.js';
 
-// @desc    Register user
-// @route   POST /api/auth/register
-// @access  Public
+// @desc    Register user
+// @route   POST /api/auth/register
+// @access  Public
 export const register = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -231,9 +284,9 @@ export const register = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
+// @desc    Login user
+// @route   POST /api/auth/login
+// @access  Public
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
@@ -259,9 +312,9 @@ export const login = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get current logged in user
-// @route   GET /api/auth/me
-// @access  Private
+// @desc    Get current logged in user
+// @route   GET /api/auth/me
+// @access  Private
 export const getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id);
   res.json({
@@ -277,12 +330,11 @@ export const getMe = asyncHandler(async (req, res) => {
       `import Item from '../models/Item.js';
 import asyncHandler from '../middlewares/asyncHandler.js';
 
-// @desc    Get all items
-// @route   GET /api/items
-// @access  Private
+// @desc    Get all items
+// @route   GET /api/items
+// @access  Private
 export const getItems = asyncHandler(async (req, res) => {
   const items = await Item.find({ user: req.user.id }).populate('user', 'name email');
-  
   res.json({
     success: true,
     count: items.length,
@@ -290,9 +342,9 @@ export const getItems = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get single item
-// @route   GET /api/items/:id
-// @access  Private
+// @desc    Get single item
+// @route   GET /api/items/:id
+// @access  Private
 export const getItem = asyncHandler(async (req, res) => {
   const item = await Item.findOne({ _id: req.params.id, user: req.user.id });
 
@@ -309,12 +361,11 @@ export const getItem = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Create new item
-// @route   POST /api/items
-// @access  Private
+// @desc    Create new item
+// @route   POST /api/items
+// @access  Private
 export const createItem = asyncHandler(async (req, res) => {
   req.body.user = req.user.id;
-  
   const item = await Item.create(req.body);
 
   res.status(201).json({
@@ -323,9 +374,9 @@ export const createItem = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Update item
-// @route   PUT /api/items/:id
-// @access  Private
+// @desc    Update item
+// @route   PUT /api/items/:id
+// @access  Private
 export const updateItem = asyncHandler(async (req, res) => {
   let item = await Item.findOne({ _id: req.params.id, user: req.user.id });
 
@@ -347,9 +398,9 @@ export const updateItem = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Delete item
-// @route   DELETE /api/items/:id
-// @access  Private
+// @desc    Delete item
+// @route   DELETE /api/items/:id
+// @access  Private
 export const deleteItem = asyncHandler(async (req, res) => {
   const item = await Item.findOne({ _id: req.params.id, user: req.user.id });
 
@@ -580,8 +631,6 @@ app.get('/', (req, res) => {
   });
 });
 
-
-
 // Error handler
 app.use(errorHandler);
 
@@ -596,7 +645,6 @@ const server = app.listen(PORT, () => {
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
   console.log(\`❌ Error: \${err.message}\`);
-  // Close server & exit process
   server.close(() => {
     process.exit(1);
   });
@@ -615,11 +663,11 @@ process.on('SIGTERM', () => {
     process.chdir(baseDir);
 
     // Initialize npm project
-    console.log('⚡ Initializing npm project...');
+    log('⚡ Initializing npm project...', 'cyan');
     execSync('npm init -y', { stdio: 'inherit' });
 
     // Update package.json with module type and scripts
-    console.log('🔧 Updating package.json with ESM module type...');
+    log('🔧 Updating package.json with ESM module type...', 'cyan');
     const packageJsonPath = path.join(baseDir, 'package.json');
     const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
 
@@ -638,7 +686,7 @@ process.on('SIGTERM', () => {
     await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
     // Install dependencies
-    console.log('📦 Installing production dependencies...');
+    log('📦 Installing production dependencies...', 'cyan');
     const dependencies = [
       'express',
       'mongoose',
@@ -648,20 +696,19 @@ process.on('SIGTERM', () => {
       'bcryptjs',
       'morgan'
     ];
-
     const devDependencies = ['nodemon'];
 
     execSync(`npm install ${dependencies.join(' ')}`, { stdio: 'inherit' });
-    console.log('🔧 Installing development dependencies...');
+    log('🔧 Installing development dependencies...', 'cyan');
     execSync(`npm install -D ${devDependencies.join(' ')}`, { stdio: 'inherit' });
 
     // Check for package updates
     try {
-      console.log('🔄 Checking for package updates...');
+      log('🔄 Checking for package updates...', 'cyan');
       execSync('npx npm-check-updates -u', { stdio: 'inherit' });
       execSync('npm install', { stdio: 'inherit' });
     } catch (error) {
-      console.log('⚠️ Package update check failed, continuing...');
+      log('⚠️ Package update check failed, continuing...', 'yellow');
     }
 
     // Create README.md with comprehensive documentation
@@ -775,27 +822,27 @@ Content-Type: application/json
 \`\`\`
 ${userFolder}/
 ├── config/
-│   └── db.js              # Database connection
+│   └── db.js                # Database connection
 ├── controllers/
-│   ├── authController.js  # Authentication logic
-│   └── itemController.js  # Item CRUD operations
+│   ├── authController.js    # Authentication logic
+│   └── itemController.js    # Item CRUD operations
 ├── middlewares/
-│   ├── authMiddleware.js  # JWT authentication
-│   ├── asyncHandler.js    # Async error handler
-│   └── errorHandler.js    # Global error handler
+│   ├── authMiddleware.js    # JWT authentication
+│   ├── asyncHandler.js      # Async error handler
+│   └── errorHandler.js      # Global error handler
 ├── models/
-│   ├── User.js           # User schema
-│   └── Item.js           # Item schema
+│   ├── User.js              # User schema
+│   └── Item.js              # Item schema
 ├── routes/
-│   ├── auth.js           # Authentication routes
-│   └── items.js          # Item routes
+│   ├── auth.js              # Authentication routes
+│   └── items.js             # Item routes
 ├── utils/
-│   └── generateToken.js   # JWT token generation
-├── .env                  # Environment variables
-├── .gitignore           # Git ignore rules
-├── package.json         # Dependencies and scripts
-├── README.md           # Documentation
-└── server.js           # Application entry point
+│   └── generateToken.js     # JWT token generation
+├── .env                     # Environment variables
+├── .gitignore               # Git ignore rules
+├── package.json             # Dependencies and scripts
+├── README.md                # Documentation
+└── server.js                # Application entry point
 \`\`\`
 
 ## Environment Variables
@@ -872,30 +919,33 @@ Happy coding! 🚀
 `
     );
 
-    console.log('🎉 ✅ MERN Backend setup completed successfully!');
-    console.log(`\n📁 Project created in: ${userFolder}/`);
-    console.log('📝 All files generated with ESM module support');
-    console.log('🔧 Package.json configured with "type": "module"');
-    console.log('📦 All dependencies installed');
-    console.log('🏥 Health check endpoint: http://localhost:5000/health');
-    console.log('📚 Complete API documentation in README.md');
+    log('🎉 ✅ MERN Backend setup completed successfully!', 'green');
+    log(`\n📁 Project created in: ${userFolder}/`, 'cyan');
+    log('📝 All files generated with ESM module support', 'cyan');
+    log('🔧 Package.json configured with "type": "module"', 'cyan');
+    log('📦 All dependencies installed', 'cyan');
+    log('🏥 Health check endpoint: http://localhost:5000/health', 'cyan');
+    log('📚 Complete API documentation in README.md', 'cyan');
+
+    // Cleanup CLI installation files if needed
+    await cleanupCLIFiles(__dirname, baseDir);
+    log('✅ Extra node_modules cleanup completed!', 'green');
 
     // Automatically start the development server
-    console.log('\n🚀 Starting development server with nodemon...');
-    console.log('🔥 Press Ctrl+C to stop the server\n');
+    log('\n🚀 Starting development server with nodemon...', 'green');
+    log('🔥 Press Ctrl+C to stop the server\n', 'yellow');
 
     try {
       execSync('npm run dev', { stdio: 'inherit' });
     } catch (error) {
-      console.log('\n👋 Development server stopped.');
-      console.log(`\nTo restart your server:`);
-      console.log(`   cd ${userFolder}`);
-      console.log('   npm run dev     # Development mode with nodemon');
-      console.log('   npm start       # Production mode');
+      log('\n👋 Development server stopped.', 'cyan');
+      log(`\nTo restart your server:`, 'cyan');
+      log(`   cd ${userFolder}`, 'cyan');
+      log('   npm run dev     # Development mode with nodemon', 'cyan');
+      log('   npm start       # Production mode', 'cyan');
     }
-
   } catch (error) {
-    console.error('❌ Error creating MERN backend:', error.message);
+    log('❌ Error creating MERN backend: ' + error.message, 'red');
     process.exit(1);
   }
 }
